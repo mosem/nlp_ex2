@@ -2,6 +2,7 @@ import nltk, ssl
 from nltk.corpus import brown
 from collections import Counter
 import numpy as np
+from random import choice
 
 DUMMY_TRAINING_SET = [[('The', 'AT'), ('dog', 'NN-TL'), ('jumped', 'VBD'), ('over', 'IN'), ('the', 'AT'), ('fence', 'NN'), ('.', '.')]]
 DUMMY_TEST_SET =  [[('The', 'AT'), ('the', 'AT'), ('the', 'NN'), ('unknown', 'NN')]]
@@ -80,8 +81,6 @@ def get_transition_probabilities(hmmTagger, tags, current_tag):
 
 def viterbi(words, tags, hmmTagger):
     tags = list(sorted(tags))
-    print(words)
-    print(tags)
     trellis = np.zeros((len(tags), len(words)), dtype=np.float)
     back_pointers = np.zeros((len(tags), len(words)), dtype=np.int)
     best_path = []
@@ -89,7 +88,10 @@ def viterbi(words, tags, hmmTagger):
         trellis[i,0] = hmmTagger.get_initial_tag_probability(tag) * hmmTagger.get_emmission_probability(tag, words[0])
     for word_ind in range(1, len(words)):
         for tag_ind, tag in enumerate(tags):
-            max_prev_word_tag_ind = np.argmax(trellis[:,word_ind-1] * get_transition_probabilities(hmmTagger, tags, tag) * hmmTagger.get_emmission_probability(tag, words[word_ind]))
+            if (hmm_tagger.is_word_known(words[word_ind])):
+                max_prev_word_tag_ind = np.argmax(trellis[:, word_ind - 1] * get_transition_probabilities(hmmTagger, tags,tag) * hmmTagger.get_emmission_probability(tag, words[word_ind]))
+            else:
+                max_prev_word_tag_ind = choice(range(len(tags)))
             max_prev_tag = tags[max_prev_word_tag_ind]
             back_pointers[tag_ind, word_ind] = max_prev_word_tag_ind
             trellis[tag_ind, word_ind] = trellis[max_prev_word_tag_ind, word_ind-1] * hmmTagger.get_transition_probability(max_prev_tag, tag) * hmmTagger.get_emmission_probability(tag, words[word_ind])
@@ -98,6 +100,7 @@ def viterbi(words, tags, hmmTagger):
         max_tag_ind = np.argmax(trellis[:,word_ind])
         best_path.insert(0,tags[back_pointers[max_tag_ind,word_ind]])
     return best_path
+
 
 def test_hmm_tagger():
     training_set, test_set = load_dummy_sets()
@@ -118,4 +121,12 @@ def test_hmm_tagger():
 
 
 if __name__ == "__main__":
-    test_hmm_tagger()
+    # test_hmm_tagger()
+    training_set, test_set = load_training_test_sets()
+    tagged_words = [tagged_word for tagged_sentence in training_set for tagged_word in tagged_sentence]
+    tags = set(i[1] for i in tagged_words)
+    hmm_tagger = HmmTagger(training_set)
+    test_sentence = [('But', 'CC'), ('by', 'IN'), ('the', 'AT'), ('end', 'NN'), ('of', 'IN'), ('the', 'AT'), ('three-month', 'JJ'), ('period', 'NN'), (',', ','), ('in', 'IN'), ('October', 'NP'), ('1960', 'CD'), (',', ','), ('something', 'PN'), ('approaching', 'VBG'), ('calm', 'JJ'), ('settled', 'VBN'), ('on', 'IN'), ('the', 'AT'), ('Congo', 'NP'), ('.', '.')]
+    prediction = viterbi([tagged_word[0] for tagged_word in test_sentence], tags, hmm_tagger)
+    print(test_sentence)
+    print(prediction)
