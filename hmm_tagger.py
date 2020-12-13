@@ -83,19 +83,20 @@ def viterbi(words, tags, hmmTagger):
     print(words)
     print(tags)
     trellis = np.zeros((len(tags), len(words)), dtype=np.float)
+    back_pointers = np.zeros((len(tags), len(words)), dtype=np.int)
     best_path = []
     for i, tag in enumerate(tags):
         trellis[i,0] = hmmTagger.get_initial_tag_probability(tag) * hmmTagger.get_emmission_probability(tag, words[0])
     for word_ind in range(1, len(words)):
         for tag_ind, tag in enumerate(tags):
-            max_prev_word_tag_ind = np.argmax(trellis[:,word_ind-1] * get_transition_probabilities(hmmTagger, tags, tag) * hmmTagger.get_emmission_probability(tag, words[i]))
+            max_prev_word_tag_ind = np.argmax(trellis[:,word_ind-1] * get_transition_probabilities(hmmTagger, tags, tag) * hmmTagger.get_emmission_probability(tag, words[word_ind]))
             max_prev_tag = tags[max_prev_word_tag_ind]
-            print(words[word_ind], tag, max_prev_word_tag_ind, max_prev_tag)
-            trellis[tag_ind, word_ind] = trellis[max_prev_word_tag_ind, word_ind-1] * hmmTagger.get_transition_probability(max_prev_tag, tag) * hmmTagger.get_emmission_probability(tag, words[i])
-    print(trellis)
-    for word_ind in range(len(words)-1,-1, -1):
+            back_pointers[tag_ind, word_ind] = max_prev_word_tag_ind
+            trellis[tag_ind, word_ind] = trellis[max_prev_word_tag_ind, word_ind-1] * hmmTagger.get_transition_probability(max_prev_tag, tag) * hmmTagger.get_emmission_probability(tag, words[word_ind])
+    best_path.insert(0,tags[np.argmax(trellis[:,len(words)-1])])
+    for word_ind in range(len(words)-1,0, -1):
         max_tag_ind = np.argmax(trellis[:,word_ind])
-        best_path.append(tags[max_tag_ind])
+        best_path.insert(0,tags[back_pointers[max_tag_ind,word_ind]])
     return best_path
 
 def test_hmm_tagger():
@@ -111,7 +112,7 @@ def test_hmm_tagger():
     # print('the emission: {}'.format(the_emission))
     print(hmm_tagger.get_initial_tag_probability('AT'))
     print(hmm_tagger.get_emmission_probability('AT', 'The'))
-    test_sequence = ['The', 'dog', 'jumped', 'over', 'the', 'fence','.']
+    test_sequence = ['The', 'dog','jumped','over','the','fence','.']
     prediction = viterbi(test_sequence, tags, hmm_tagger)
     print(prediction)
 
