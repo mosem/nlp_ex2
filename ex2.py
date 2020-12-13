@@ -50,15 +50,16 @@ def get_transition_probabilities(hmmTagger, tags, current_tag):
 
 
 def viterbi(words, tags, hmmTagger):
-    tags = list(sorted(tags))
+
     trellis = np.zeros((len(tags), len(words)), dtype=np.float)
     back_pointers = np.zeros((len(tags), len(words)), dtype=np.int)
     best_path = []
     for i, tag in enumerate(tags):
         trellis[i,0] = hmmTagger.get_initial_tag_probability(tag) * hmmTagger.get_emmission_probability(tag, words[0])
     for word_ind in range(1, len(words)):
+        word_known_flag = hmmTagger.is_word_known(words[word_ind])
         for tag_ind, tag in enumerate(tags):
-            if (hmmTagger.is_word_known(words[word_ind])):
+            if word_known_flag:
                 max_prev_word_tag_ind = np.argmax(trellis[:, word_ind - 1] * get_transition_probabilities(hmmTagger, tags,tag) * hmmTagger.get_emmission_probability(tag, words[word_ind]))
             else:
                 max_prev_word_tag_ind = choice(range(len(tags)))
@@ -110,19 +111,33 @@ def most_likely_tag_baseline(training_set, test_set):
 
 def evaluate_vanilla_viterbi(training_set, test_set):
     hmm_tagger = HmmTagger(training_set)
+    print('done training hmm tagger.')
     tagged_words = [tagged_word for tagged_sentence in training_set for tagged_word in tagged_sentence]
     words, tags = zip(*tagged_words)
     words_set = set(i[0] for i in tagged_words)
     tags = set(i[1] for i in tagged_words)
+    tags = list(sorted(tags))
 
     total_incorrect_known_words_counter = 0
     total_known_words_counter = 0
     total_incorrect_unknown_words_counter = 0
     total_unknown_words_counter = 0
 
-    for sentence in test_set:
+
+
+    # sentence = test_set[0]
+    # print(sentence)
+    # sentence_words, sentence_tags = zip(*sentence)
+    # prediction = viterbi(sentence_words, tags, hmm_tagger)
+    # print(prediction)
+    # print('done predicting.')
+    total_test_words = 0
+    for i, sentence in enumerate(test_set):
         sentence_words, sentence_tags = zip(*sentence)
+        total_test_words += len(sentence)
         prediction = viterbi(sentence_words, tags, hmm_tagger)
+        # print(sentence_tags)
+        # print(prediction)
         for i in range(len(sentence)):
             if sentence_words[i] in words_set:
                 total_known_words_counter = total_known_words_counter + 1
@@ -138,7 +153,57 @@ def evaluate_vanilla_viterbi(training_set, test_set):
         unknown_words_error_rate = 0
     else:
         unknown_words_error_rate = total_incorrect_unknown_words_counter / total_unknown_words_counter
-    total_error_rate = (total_incorrect_known_words_counter + total_incorrect_unknown_words_counter) / len(words)
+    total_error_rate = (total_incorrect_known_words_counter + total_incorrect_unknown_words_counter) / total_test_words
+
+    print('known words error rate: {}'.format(known_words_error_rate))
+    print('unknown words error rate: {}'.format(unknown_words_error_rate))
+    print('total error rate: {}'.format(total_error_rate))
+
+
+def evaluate_smoothing_viterbi(training_set, test_set):
+    print('initiating one smoothing hmm tagger.')
+    hmm_tagger = HmmTagger(training_set,smoothing=True)
+    print('done training hmm tagger.')
+    tagged_words = [tagged_word for tagged_sentence in training_set for tagged_word in tagged_sentence]
+    words, tags = zip(*tagged_words)
+    words_set = set(i[0] for i in tagged_words)
+    tags = set(i[1] for i in tagged_words)
+    tags = list(sorted(tags))
+
+    total_incorrect_known_words_counter = 0
+    total_known_words_counter = 0
+    total_incorrect_unknown_words_counter = 0
+    total_unknown_words_counter = 0
+
+    # sentence = test_set[0]
+    # print(sentence)
+    # sentence_words, sentence_tags = zip(*sentence)
+    # prediction = viterbi(sentence_words, tags, hmm_tagger)
+    # print(prediction)
+    # print('done predicting.')
+    total_test_words = 0
+    for i, sentence in enumerate(test_set):
+        sentence_words, sentence_tags = zip(*sentence)
+        total_test_words += len(sentence)
+        prediction = viterbi(sentence_words, tags, hmm_tagger)
+        # print(sentence_tags)
+        # print(prediction)
+        for i in range(len(sentence)):
+            if sentence_words[i] in words_set:
+                total_known_words_counter = total_known_words_counter + 1
+                if prediction[i] != sentence_tags[i]:
+                    total_incorrect_known_words_counter = total_incorrect_known_words_counter + 1
+            else:
+                total_unknown_words_counter = total_unknown_words_counter + 1
+                if prediction[i] != sentence_tags[i]:
+                    total_incorrect_unknown_words_counter = total_incorrect_unknown_words_counter + 1
+
+    known_words_error_rate = total_incorrect_known_words_counter / total_known_words_counter
+    if total_unknown_words_counter == 0:
+        unknown_words_error_rate = 0
+    else:
+        unknown_words_error_rate = total_incorrect_unknown_words_counter / total_unknown_words_counter
+    total_error_rate = (total_incorrect_known_words_counter + total_incorrect_unknown_words_counter) / total_test_words
 
     print('known words error rate: {}'.format(known_words_error_rate))
     print('unknown words error rate: {}'.format(unknown_words_error_rate))
@@ -152,5 +217,8 @@ if __name__ == "__main__":
     # print('running most likely tag baseline')
     # most_likely_tag_baseline(training_set, test_set)
 
-    print('running vanilla viterbi')
-    evaluate_vanilla_viterbi(training_set, test_set)
+    # print('running vanilla viterbi')
+    # evaluate_vanilla_viterbi(training_set, test_set)
+
+    print('running smoothing viterbi')
+    evaluate_smoothing_viterbi(training_set, test_set)

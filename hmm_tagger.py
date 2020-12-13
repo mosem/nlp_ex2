@@ -25,12 +25,14 @@ class HmmTagger:
     tags_pairs_counter = {}
 
 
-    def __init__(self, training_set):
+    def __init__(self, training_set,smoothing=False):
         self.tagged_sentences = training_set
         self.tagged_words = [tagged_word for tagged_sentence in training_set for tagged_word in tagged_sentence]
         self.tags_counter = Counter(i[1] for i in self.tagged_words)
         self.initial_tags_counter = Counter(tagged_sentence[0][1] for tagged_sentence in training_set)
         self.__count_tags_pairs()
+        self.__init_words_tags_counter()
+        self.smoothing = smoothing
 
 
     def __count_tags_pairs(self):
@@ -38,8 +40,7 @@ class HmmTagger:
         for i in range(1, len(self.tagged_words)):
             preceding_word_tag = self.tagged_words[i-1][1]
             current_word_tag = self.tagged_words[i][1]
-            self.tags_pairs_counter[preceding_word_tag][current_word_tag] = \
-                self.tags_pairs_counter[preceding_word_tag][current_word_tag] + 1
+            self.tags_pairs_counter[preceding_word_tag][current_word_tag] += 1
 
 
     def __init_tags_pairs_counter(self):
@@ -47,6 +48,17 @@ class HmmTagger:
             self.tags_pairs_counter[row_tag] = {}
             for col_tag in self.tags_counter.keys():
                 self.tags_pairs_counter[row_tag][col_tag] = 0
+
+
+    def __init_words_tags_counter(self):
+        self.word_tags_counter = {}
+        for word, tag in self.tagged_words:
+            if word not in self.word_tags_counter.keys():
+                self.word_tags_counter[word] = {}
+            if tag not in self.word_tags_counter[word].keys():
+                self.word_tags_counter[word][tag] = 1
+            else:
+                self.word_tags_counter[word][tag] += 1
 
 
     def get_initial_tag_probability(self, tag):
@@ -62,14 +74,19 @@ class HmmTagger:
     returns P(word|tag) - probability of word to appear given current tag.
     """
     def get_emmission_probability(self, tag, word):
-        word_tags_counter = Counter([tagged_word[1] for tagged_word in self.tagged_words if tagged_word[0] == word])
-        if tag not in word_tags_counter.keys():
+        if self.smoothing:
+            if word not in self.word_tags_counter.keys() or tag not in self.word_tags_counter[word].keys():
+                return 1/(self.tags_counter[tag] + len(self.tags_counter))
+            return (self.word_tags_counter[word][tag] + 1)/(self.tags_counter[tag] + len(self.tags_counter))
+        if word not in self.word_tags_counter.keys():
             return 0
-        return word_tags_counter[tag]/self.tags_counter[tag]
+        if tag not in self.word_tags_counter[word].keys():
+            return 0
+        return (self.word_tags_counter[word][tag])/(self.tags_counter[tag])
 
 
     def is_word_known(self, word):
-        return word in (tagged_word[0] for tagged_word in self.tagged_words)
+        return word in self.word_tags_counter.keys()
 
 
 def get_transition_probabilities(hmmTagger, tags, current_tag):
@@ -88,7 +105,7 @@ def viterbi(words, tags, hmmTagger):
         trellis[i,0] = hmmTagger.get_initial_tag_probability(tag) * hmmTagger.get_emmission_probability(tag, words[0])
     for word_ind in range(1, len(words)):
         for tag_ind, tag in enumerate(tags):
-            if (hmm_tagger.is_word_known(words[word_ind])):
+            if (hmmTagger.is_word_known(words[word_ind])):
                 max_prev_word_tag_ind = np.argmax(trellis[:, word_ind - 1] * get_transition_probabilities(hmmTagger, tags,tag) * hmmTagger.get_emmission_probability(tag, words[word_ind]))
             else:
                 max_prev_word_tag_ind = choice(range(len(tags)))
@@ -121,12 +138,14 @@ def test_hmm_tagger():
 
 
 if __name__ == "__main__":
-    # test_hmm_tagger()
     training_set, test_set = load_training_test_sets()
-    tagged_words = [tagged_word for tagged_sentence in training_set for tagged_word in tagged_sentence]
-    tags = set(i[1] for i in tagged_words)
     hmm_tagger = HmmTagger(training_set)
-    test_sentence = [('But', 'CC'), ('by', 'IN'), ('the', 'AT'), ('end', 'NN'), ('of', 'IN'), ('the', 'AT'), ('three-month', 'JJ'), ('period', 'NN'), (',', ','), ('in', 'IN'), ('October', 'NP'), ('1960', 'CD'), (',', ','), ('something', 'PN'), ('approaching', 'VBG'), ('calm', 'JJ'), ('settled', 'VBN'), ('on', 'IN'), ('the', 'AT'), ('Congo', 'NP'), ('.', '.')]
-    prediction = viterbi([tagged_word[0] for tagged_word in test_sentence], tags, hmm_tagger)
-    print(test_sentence)
-    print(prediction)
+    # test_hmm_tagger()
+    # training_set, test_set = load_training_test_sets()
+    # tagged_words = [tagged_word for tagged_sentence in training_set for tagged_word in tagged_sentence]
+    # tags = set(i[1] for i in tagged_words)
+    # hmm_tagger = HmmTagger(training_set)
+    # test_sentence = [('But', 'CC'), ('by', 'IN'), ('the', 'AT'), ('end', 'NN'), ('of', 'IN'), ('the', 'AT'), ('three-month', 'JJ'), ('period', 'NN'), (',', ','), ('in', 'IN'), ('October', 'NP'), ('1960', 'CD'), (',', ','), ('something', 'PN'), ('approaching', 'VBG'), ('calm', 'JJ'), ('settled', 'VBN'), ('on', 'IN'), ('the', 'AT'), ('Congo', 'NP'), ('.', '.')]
+    # prediction = viterbi([tagged_word[0] for tagged_word in test_sentence], tags, hmm_tagger)
+    # print(test_sentence)
+    # print(prediction)
