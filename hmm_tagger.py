@@ -19,133 +19,128 @@ def load_dummy_sets():
 
 class HmmTagger:
 
-    tagged_sentences = None
-    tagged_words = None
-    tags_counter = Counter()
-    tags_pairs_counter = {}
-
 
     def __init__(self, training_set,smoothing=False):
-        self.tagged_sentences = training_set
-        self.tagged_words = [tagged_word for tagged_sentence in training_set for tagged_word in tagged_sentence]
-        self.tags_counter = Counter(i[1] for i in self.tagged_words)
-        self.initial_tags_counter = Counter(tagged_sentence[0][1] for tagged_sentence in training_set)
-        self.__count_tags_pairs()
-        self.__init_words_tags_counter()
+        self.training_set = training_set
+
+
+        words, tags = zip(*[tagged_word for sentence in self.training_set for tagged_word in sentence])
+
+        self.known_words = set(words)
+        self.known_tags = set(tags)
+
+        self.__init_tables()
+
         self.smoothing = smoothing
 
 
-    def __count_tags_pairs(self):
-        self.__init_tags_pairs_counter()
-        for i in range(1, len(self.tagged_words)):
-            preceding_word_tag = self.tagged_words[i-1][1]
-            current_word_tag = self.tagged_words[i][1]
-            self.tags_pairs_counter[preceding_word_tag][current_word_tag] += 1
+    def __init_tables(self):
+        self.transition_table = self.__init_transition_table()
+        self.emission_table = self.__init_emission_table()
+        for sentence in self.training_set:
+            temp_sentence = [(None,'*')] + sentence + [(None,'STOP')]
+            for i in range(1, len(temp_sentence)):
+                preceding_tag = temp_sentence[i-1][1]
+                current_tag = temp_sentence[i][1]
+                self.transition_table[preceding_tag][current_tag] += 1
+            for word, tag in sentence:
+                self.emission_table[tag][word] += 1
+
+        self.__normalize_table(self.transition_table)
+        self.__normalize_table(self.emission_table)
 
 
-    def __init_tags_pairs_counter(self):
-        for row_tag in self.tags_counter.keys():
-            self.tags_pairs_counter[row_tag] = {}
-            for col_tag in self.tags_counter.keys():
-                self.tags_pairs_counter[row_tag][col_tag] = 0
+    def __init_transition_table(self):
+        table = {}
+        tags = self.known_tags | {'*', 'STOP'}
+        for row_tag in tags:
+            table[row_tag] = {}
+            for col_tag in tags:
+                table[row_tag][col_tag] = 0
+        return table
 
 
-    def __init_words_tags_counter(self):
-        self.word_tags_counter = {}
-        for word, tag in self.tagged_words:
-            if word not in self.word_tags_counter.keys():
-                self.word_tags_counter[word] = {}
-            if tag not in self.word_tags_counter[word].keys():
-                self.word_tags_counter[word][tag] = 1
-            else:
-                self.word_tags_counter[word][tag] += 1
+    def __init_emission_table(self):
+        table = {}
+        for tag in self.known_tags:
+            table[tag] = {}
+            for word in self.known_words:
+                table[tag][word] = 0
+        return table
 
 
-    def get_initial_tag_probability(self, tag):
-        return self.initial_tags_counter[tag]/len(self.tagged_sentences)
+    """
+        normalize dictionary of dictionaries
+    """
+    def __normalize_table(self, table):
+        for row_key, row_dict in table.items():
+            total_row_sum = sum(row_dict.values())
+            for col_key, value in row_dict.items():
+                if total_row_sum != 0:
+                    table[row_key][col_key] = value/total_row_sum
+
 
     """
     returns P(t_i|t_i-1) - probablity of current tag to appear given previous tag
     """
     def get_transition_probability(self, preceding_tag, current_tag):
-        return self.tags_pairs_counter[preceding_tag][current_tag]/self.tags_counter[preceding_tag]
+        return self.transition_table[preceding_tag][current_tag]
 
     """
     returns P(word|tag) - probability of word to appear given current tag.
     """
     def get_emmission_probability(self, tag, word):
-        if self.smoothing:
-            if word not in self.word_tags_counter.keys() or tag not in self.word_tags_counter[word].keys():
-                return 1/(self.tags_counter[tag] + len(self.tags_counter))
-            return (self.word_tags_counter[word][tag] + 1)/(self.tags_counter[tag] + len(self.tags_counter))
-        if word not in self.word_tags_counter.keys():
-            return 0
-        if tag not in self.word_tags_counter[word].keys():
-            return 0
-        return (self.word_tags_counter[word][tag])/(self.tags_counter[tag])
+        return self.emission_table[tag][word]
 
 
     def is_word_known(self, word):
-        return word in self.word_tags_counter.keys()
+        return word in self.known_words
 
 
-def get_transition_probabilities(hmmTagger, tags, current_tag):
-    probs = []
-    for prev_tag in tags:
-        probs.append(hmmTagger.get_transition_probability(prev_tag, current_tag))
-    return np.array(probs)
+    def get_transition_probabilities(self, tags_list, current_tag):
+        probs = []
+        for prev_tag in tags_list:
+            probs.append(self.get_transition_probability(prev_tag, current_tag))
+        return np.array(probs)
 
 
-def viterbi(words, tags, hmmTagger):
-    tags = list(sorted(tags))
-    trellis = np.zeros((len(tags), len(words)), dtype=np.float)
-    back_pointers = np.zeros((len(tags), len(words)), dtype=np.int)
-    best_path = []
-    for i, tag in enumerate(tags):
-        trellis[i,0] = hmmTagger.get_initial_tag_probability(tag) * hmmTagger.get_emmission_probability(tag, words[0])
-    for word_ind in range(1, len(words)):
-        for tag_ind, tag in enumerate(tags):
-            if (hmmTagger.is_word_known(words[word_ind])):
-                max_prev_word_tag_ind = np.argmax(trellis[:, word_ind - 1] * get_transition_probabilities(hmmTagger, tags,tag) * hmmTagger.get_emmission_probability(tag, words[word_ind]))
-            else:
-                max_prev_word_tag_ind = choice(range(len(tags)))
-            max_prev_tag = tags[max_prev_word_tag_ind]
-            back_pointers[tag_ind, word_ind] = max_prev_word_tag_ind
-            trellis[tag_ind, word_ind] = trellis[max_prev_word_tag_ind, word_ind-1] * hmmTagger.get_transition_probability(max_prev_tag, tag) * hmmTagger.get_emmission_probability(tag, words[word_ind])
-    best_path.insert(0,tags[np.argmax(trellis[:,len(words)-1])])
-    for word_ind in range(len(words)-1,0, -1):
-        max_tag_ind = np.argmax(trellis[:,word_ind])
-        best_path.insert(0,tags[back_pointers[max_tag_ind,word_ind]])
-    return best_path
+    def viterbi(self, sentence):
+        tags_list = list(sorted(self.known_tags))
+        viterbi_table = np.zeros((len(tags_list), len(sentence)), dtype=np.float)
+        back_pointers = np.zeros((len(tags_list), len(sentence)), dtype=np.int)
+        best_path = []
+        for i, tag in enumerate(tags_list):
+            viterbi_table[i,0] = self.get_transition_probability('*', tag) * self.get_emmission_probability(tag, sentence[0])
+        for word_ind in range(1, len(sentence)):
+            for tag_ind, tag in enumerate(tags_list):
+                if (self.is_word_known(sentence[word_ind])):
+                    max_prev_word_tag_ind = np.argmax(viterbi_table[:, word_ind - 1] * self.get_transition_probabilities(tags_list, tag) * self.get_emmission_probability(tag, sentence[word_ind]))
+                else:
+                    max_prev_word_tag_ind = choice(range(len(tags_list)))
+                max_prev_tag = tags_list[max_prev_word_tag_ind]
+                back_pointers[tag_ind, word_ind] = max_prev_word_tag_ind
+                viterbi_table[tag_ind, word_ind] = viterbi_table[max_prev_word_tag_ind, word_ind - 1] * self.get_transition_probability(max_prev_tag, tag) * self.get_emmission_probability(tag, sentence[word_ind])
+        transitions_to_stop = [viterbi_table[tag_ind,-1]*self.get_transition_probability(tags_list[tag_ind], 'STOP') for tag_ind in range(len(tags_list))]
+        best_path.insert(0, tags_list[np.argmax(transitions_to_stop)])
+        for word_ind in range(len(sentence) - 1, 0, -1):
+            max_tag_ind = np.argmax(viterbi_table[:, word_ind])
+            best_path.insert(0, tags_list[back_pointers[max_tag_ind, word_ind]])
+        return best_path
 
 
 def test_hmm_tagger():
     training_set, test_set = load_dummy_sets()
     hmm_tagger = HmmTagger(training_set)
-    tagged_words = [tagged_word for tagged_sentence in training_set for tagged_word in tagged_sentence]
-    tags = set(i[1] for i in tagged_words)
-    # for preceding_tag in tags:
-    #     for current_tag in tags:
-    #         transition_probablity = hmm_tagger.get_transition_probability(preceding_tag, current_tag)
-    #         print("({},{}): {}".format(preceding_tag, current_tag, transition_probablity))
-    # the_emission = hmm_tagger.get_emmission_probability('AT', 'the')
-    # print('the emission: {}'.format(the_emission))
-    print(hmm_tagger.get_initial_tag_probability('AT'))
-    print(hmm_tagger.get_emmission_probability('AT', 'The'))
+    for k,d in hmm_tagger.transition_table.items():
+        print(k,d)
+    for k,d in hmm_tagger.emission_table.items():
+        print(k,d)
+    print(training_set)
     test_sequence = ['The', 'dog','jumped','over','the','fence','.']
-    prediction = viterbi(test_sequence, tags, hmm_tagger)
+    prediction = hmm_tagger.viterbi(test_sequence)
     print(prediction)
 
 
 if __name__ == "__main__":
-    training_set, test_set = load_training_test_sets()
-    hmm_tagger = HmmTagger(training_set)
-    # test_hmm_tagger()
-    # training_set, test_set = load_training_test_sets()
-    # tagged_words = [tagged_word for tagged_sentence in training_set for tagged_word in tagged_sentence]
-    # tags = set(i[1] for i in tagged_words)
-    # hmm_tagger = HmmTagger(training_set)
-    # test_sentence = [('But', 'CC'), ('by', 'IN'), ('the', 'AT'), ('end', 'NN'), ('of', 'IN'), ('the', 'AT'), ('three-month', 'JJ'), ('period', 'NN'), (',', ','), ('in', 'IN'), ('October', 'NP'), ('1960', 'CD'), (',', ','), ('something', 'PN'), ('approaching', 'VBG'), ('calm', 'JJ'), ('settled', 'VBN'), ('on', 'IN'), ('the', 'AT'), ('Congo', 'NP'), ('.', '.')]
-    # prediction = viterbi([tagged_word[0] for tagged_word in test_sentence], tags, hmm_tagger)
-    # print(test_sentence)
-    # print(prediction)
+    test_hmm_tagger()
+
