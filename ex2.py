@@ -55,17 +55,17 @@ def viterbi(words, tags, hmmTagger):
     back_pointers = np.zeros((len(tags), len(words)), dtype=np.int)
     best_path = []
     for i, tag in enumerate(tags):
-        trellis[i,0] = hmmTagger.get_initial_tag_probability(tag) * hmmTagger.get_emmission_probability(tag, words[0])
+        trellis[i,0] = hmmTagger.get_initial_tag_probability(tag) * hmmTagger.get_emission_probability(tag, words[0])
     for word_ind in range(1, len(words)):
         word_known_flag = hmmTagger.is_word_known(words[word_ind])
         for tag_ind, tag in enumerate(tags):
             if word_known_flag:
-                max_prev_word_tag_ind = np.argmax(trellis[:, word_ind - 1] * get_transition_probabilities(hmmTagger, tags,tag) * hmmTagger.get_emmission_probability(tag, words[word_ind]))
+                max_prev_word_tag_ind = np.argmax(trellis[:, word_ind - 1] * get_transition_probabilities(hmmTagger, tags,tag) * hmmTagger.get_emission_probability(tag, words[word_ind]))
             else:
                 max_prev_word_tag_ind = choice(range(len(tags)))
             max_prev_tag = tags[max_prev_word_tag_ind]
             back_pointers[tag_ind, word_ind] = max_prev_word_tag_ind
-            trellis[tag_ind, word_ind] = trellis[max_prev_word_tag_ind, word_ind-1] * hmmTagger.get_transition_probability(max_prev_tag, tag) * hmmTagger.get_emmission_probability(tag, words[word_ind])
+            trellis[tag_ind, word_ind] = trellis[max_prev_word_tag_ind, word_ind-1] * hmmTagger.get_transition_probability(max_prev_tag, tag) * hmmTagger.get_emission_probability(tag, words[word_ind])
     best_path.insert(0,tags[np.argmax(trellis[:,len(words)-1])])
     for word_ind in range(len(words)-1,0, -1):
         max_tag_ind = np.argmax(trellis[:,word_ind])

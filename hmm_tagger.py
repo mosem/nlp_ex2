@@ -22,7 +22,7 @@ class HmmTagger:
 
     def __init__(self, training_set,smoothing=False):
         self.training_set = training_set
-
+        self.smoothing = smoothing
 
         words, tags = zip(*[tagged_word for sentence in self.training_set for tagged_word in sentence])
 
@@ -30,8 +30,6 @@ class HmmTagger:
         self.known_tags = set(tags)
 
         self.__init_tables()
-
-        self.smoothing = smoothing
 
 
     def __init_tables(self):
@@ -45,6 +43,9 @@ class HmmTagger:
                 self.transition_table[preceding_tag][current_tag] += 1
             for word, tag in sentence:
                 self.emission_table[tag][word] += 1
+
+        if self.smoothing:
+            self.__update_add_one_smoothing_on_emission_table()
 
         self.__normalize_table(self.transition_table)
         self.__normalize_table(self.emission_table)
@@ -69,6 +70,12 @@ class HmmTagger:
         return table
 
 
+    def __update_add_one_smoothing_on_emission_table(self):
+        for tag in self.known_tags:
+            for word in self.known_words:
+                self.emission_table[tag][word] += 1
+
+
     """
         normalize dictionary of dictionaries
     """
@@ -89,7 +96,9 @@ class HmmTagger:
     """
     returns P(word|tag) - probability of word to appear given current tag.
     """
-    def get_emmission_probability(self, tag, word):
+    def get_emission_probability(self, tag, word):
+        if not self.is_word_known(word):
+            return 0
         return self.emission_table[tag][word]
 
 
@@ -110,16 +119,16 @@ class HmmTagger:
         back_pointers = np.zeros((len(tags_list), len(sentence)), dtype=np.int)
         best_path = []
         for i, tag in enumerate(tags_list):
-            viterbi_table[i,0] = self.get_transition_probability('*', tag) * self.get_emmission_probability(tag, sentence[0])
+            viterbi_table[i,0] = self.get_transition_probability('*', tag) * self.get_emission_probability(tag, sentence[0])
         for word_ind in range(1, len(sentence)):
             for tag_ind, tag in enumerate(tags_list):
                 if (self.is_word_known(sentence[word_ind])):
-                    max_prev_word_tag_ind = np.argmax(viterbi_table[:, word_ind - 1] * self.get_transition_probabilities(tags_list, tag) * self.get_emmission_probability(tag, sentence[word_ind]))
+                    max_prev_word_tag_ind = np.argmax(viterbi_table[:, word_ind - 1] * self.get_transition_probabilities(tags_list, tag) * self.get_emission_probability(tag, sentence[word_ind]))
                 else:
                     max_prev_word_tag_ind = choice(range(len(tags_list)))
                 max_prev_tag = tags_list[max_prev_word_tag_ind]
                 back_pointers[tag_ind, word_ind] = max_prev_word_tag_ind
-                viterbi_table[tag_ind, word_ind] = viterbi_table[max_prev_word_tag_ind, word_ind - 1] * self.get_transition_probability(max_prev_tag, tag) * self.get_emmission_probability(tag, sentence[word_ind])
+                viterbi_table[tag_ind, word_ind] = viterbi_table[max_prev_word_tag_ind, word_ind - 1] * self.get_transition_probability(max_prev_tag, tag) * self.get_emission_probability(tag, sentence[word_ind])
         transitions_to_stop = [viterbi_table[tag_ind,-1]*self.get_transition_probability(tags_list[tag_ind], 'STOP') for tag_ind in range(len(tags_list))]
         best_path.insert(0, tags_list[np.argmax(transitions_to_stop)])
         for word_ind in range(len(sentence) - 1, 0, -1):
@@ -129,16 +138,18 @@ class HmmTagger:
 
 
 def test_hmm_tagger():
-    training_set, test_set = load_dummy_sets()
-    hmm_tagger = HmmTagger(training_set)
-    for k,d in hmm_tagger.transition_table.items():
-        print(k,d)
-    for k,d in hmm_tagger.emission_table.items():
-        print(k,d)
-    print(training_set)
-    test_sequence = ['The', 'dog','jumped','over','the','fence','.']
-    prediction = hmm_tagger.viterbi(test_sequence)
+    training_set, test_set = load_training_test_sets()
+    # training_set, test_set = load_dummy_sets()
+    hmm_tagger = HmmTagger(training_set, smoothing=True)
+    test_words, test_tags = zip(*choice(test_set))
+    # test_sequence = ['The', 'dog','jumped','over','the','fence','.']
+    print(test_words)
+    print(test_tags)
+
+    prediction = hmm_tagger.viterbi(test_words)
+
     print(prediction)
+
 
 
 if __name__ == "__main__":
