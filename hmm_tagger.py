@@ -3,20 +3,8 @@ from collections import Counter
 import numpy as np
 from random import choice
 from psuedowords_utils import *
-
-DUMMY_TRAINING_SET = [[('The', 'AT'), ('dog', 'NN-TL'), ('jumped', 'VBD'), ('over', 'IN'), ('the', 'AT'), ('fence', 'NN'), ('.', '.')]]
-DUMMY_TEST_SET =  [[('The', 'AT'), ('the', 'AT'), ('the', 'NN'), ('unknown', 'NN'), ('555', 'IN')]]
-
-def load_training_test_sets():
-    sents = list(brown.tagged_sents(categories='news'))
-    slice_idx = int(0.9*len(sents))
-    training_set = sents[:slice_idx]
-    test_set = sents[slice_idx+1:]
-    return training_set, test_set
-
-def load_dummy_sets():
-    return DUMMY_TRAINING_SET, DUMMY_TEST_SET
-
+from dataset_utils import *
+from dataset_utils import convert_training_set
 
 class HmmTagger:
 
@@ -26,7 +14,11 @@ class HmmTagger:
         self.use_psuedowords = use_psuedowords
         self.low_freq_threshold = low_freq_threshold
 
-        self.training_set = (training_set) if use_psuedowords else training_set
+        if use_psuedowords:
+            self.training_set, self.words_counter = convert_training_set(training_set, low_freq_threshold)
+        else:
+            self.training_set = training_set
+
 
         words, tags = zip(*[tagged_word for sentence in self.training_set for tagged_word in sentence])
 

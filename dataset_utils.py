@@ -34,13 +34,14 @@ def clean_dataset(dataset):
 
 
 def clean_tag(tag):
-    return tag.split('[\+-]')[0]
+    return re.compile(r'[\+\-]').split(tag)[0]
 
-def __convert_training_set(training_set, low_freq_threshold):
+
+def convert_training_set(training_set, low_freq_threshold):
     new_training_set = training_set
     words_counter = Counter([word_tag[0] for sentence in new_training_set for word_tag in sentence])
     for i, tagged_sentence in enumerate(new_training_set):
         for j, (word,tag) in enumerate(tagged_sentence):
             if words_counter[word] < low_freq_threshold:
                 new_training_set[i][j] = (get_psuedoword(word, j==0), tag)
-    return new_training_set
+    return new_training_set, words_counter
