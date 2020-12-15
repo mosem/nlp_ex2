@@ -26,7 +26,7 @@ class HmmTagger:
         self.use_psuedowords = use_psuedowords
         self.low_freq_threshold = low_freq_threshold
 
-        self.training_set = self.__convert_training_set(training_set) if use_psuedowords else training_set
+        self.training_set = (training_set) if use_psuedowords else training_set
 
         words, tags = zip(*[tagged_word for sentence in self.training_set for tagged_word in sentence])
 

@@ -2,6 +2,7 @@ import nltk, ssl
 from nltk.corpus import brown
 from collections import Counter
 from hmm_tagger import HmmTagger
+import pandas as pd
 import numpy as np
 from random import choice
 
@@ -144,6 +145,25 @@ def evaluate_psuedowords_smoothing_viterbi(training_set, test_set):
     hmm_tagger = HmmTagger(training_set, smoothing=True, use_psuedowords=True)
     print('done training hmm tagger.')
     compute_error_rate(training_set, test_set, hmm_tagger)
+
+    print('computing confusion matrix')
+    get_confusion_matrix(training_set, test_set, hmm_tagger).to_csv("confusion_matrix.csv")
+
+
+def get_confusion_matrix(training_set, test_set, hmm_tagger):
+    tags = sorted([tagged_word[1] for tagged_sentence in training_set for tagged_word in tagged_sentence])
+
+    confusion_matrix = {tag1: {tag2: 0 for tag2 in tags} for tag1 in tags}
+
+    for sentence in test_set:
+        sentence_words, sentence_tags = zip(*sentence)
+        prediction = hmm_tagger.viterbi(sentence_words)
+        for i, true_tag in enumerate(sentence_tags):
+            predicted_tag = prediction[i]
+            confusion_matrix[true_tag][predicted_tag] += 1
+
+    return pd.DataFrame(confusion_matrix)
+
 
 
 if __name__ == "__main__":
