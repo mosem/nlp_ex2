@@ -82,7 +82,7 @@ def most_likely_tag_baseline(training_set, test_set):
 
 def compute_error_rate(training_set, test_set, hmm_tagger):
     tagged_words = [tagged_word for tagged_sentence in training_set for tagged_word in tagged_sentence]
-    words_set = set(i[0] for i in tagged_words)
+    known_words = set(i[0] for i in tagged_words)
 
     total_incorrect_known_words_counter = 0
     total_known_words_counter = 0
@@ -90,14 +90,14 @@ def compute_error_rate(training_set, test_set, hmm_tagger):
     total_unknown_words_counter = 0
 
     total_test_words = 0
-    for i, sentence in enumerate(test_set):
+    for sentence in test_set:
         sentence_words, sentence_tags = zip(*sentence)
         total_test_words += len(sentence)
         prediction = hmm_tagger.viterbi(sentence_words)
         # print(sentence_tags)
         # print(prediction)
         for i in range(len(sentence)):
-            if sentence_words[i] in words_set:
+            if sentence_words[i] in known_words:
                 total_known_words_counter = total_known_words_counter + 1
                 if prediction[i] != sentence_tags[i]:
                     total_incorrect_known_words_counter = total_incorrect_known_words_counter + 1
@@ -119,15 +119,22 @@ def compute_error_rate(training_set, test_set, hmm_tagger):
 
 
 def evaluate_vanilla_viterbi(training_set, test_set):
+    print('initiating vanilla hmm tagger.')
     hmm_tagger = HmmTagger(training_set)
     print('done training hmm tagger.')
     compute_error_rate(training_set, test_set, hmm_tagger)
 
 
-
 def evaluate_smoothing_viterbi(training_set, test_set):
     print('initiating one smoothing hmm tagger.')
     hmm_tagger = HmmTagger(training_set,smoothing=True)
+    print('done training hmm tagger.')
+    compute_error_rate(training_set, test_set, hmm_tagger)
+
+
+def evaluate_psuedowords_viterbi(training_set, test_set):
+    print('initiating psuedowords hmm tagger.')
+    hmm_tagger = HmmTagger(training_set, use_psuedowords=True)
     print('done training hmm tagger.')
     compute_error_rate(training_set, test_set, hmm_tagger)
 
@@ -141,6 +148,9 @@ if __name__ == "__main__":
     #
     # print('running vanilla viterbi')
     # evaluate_vanilla_viterbi(training_set, test_set)
+    #
+    # print('running smoothing viterbi')
+    # evaluate_smoothing_viterbi(training_set, test_set)
 
-    print('running smoothing viterbi')
-    evaluate_smoothing_viterbi(training_set, test_set)
+    print('running psuedowords viterbi')
+    evaluate_psuedowords_viterbi(training_set, test_set)

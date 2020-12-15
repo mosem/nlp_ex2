@@ -1,11 +1,11 @@
-import nltk, ssl
 from nltk.corpus import brown
 from collections import Counter
 import numpy as np
 from random import choice
+from psuedowords_utils import *
 
 DUMMY_TRAINING_SET = [[('The', 'AT'), ('dog', 'NN-TL'), ('jumped', 'VBD'), ('over', 'IN'), ('the', 'AT'), ('fence', 'NN'), ('.', '.')]]
-DUMMY_TEST_SET =  [[('The', 'AT'), ('the', 'AT'), ('the', 'NN'), ('unknown', 'NN')]]
+DUMMY_TEST_SET =  [[('The', 'AT'), ('the', 'AT'), ('the', 'NN'), ('unknown', 'NN'), ('555', 'IN')]]
 
 def load_training_test_sets():
     sents = list(brown.tagged_sents(categories='news'))
@@ -17,12 +17,14 @@ def load_training_test_sets():
 def load_dummy_sets():
     return DUMMY_TRAINING_SET, DUMMY_TEST_SET
 
+
 class HmmTagger:
 
-
-    def __init__(self, training_set,smoothing=False):
+    def __init__(self, training_set,smoothing=False, use_psuedowords=False, low_freq_threshold=5):
         self.training_set = training_set
         self.smoothing = smoothing
+        self.use_psuedowords = use_psuedowords
+        self.low_freq_threshold = low_freq_threshold
 
         words, tags = zip(*[tagged_word for sentence in self.training_set for tagged_word in sentence])
 
@@ -35,13 +37,17 @@ class HmmTagger:
     def __init_tables(self):
         self.transition_table = self.__init_transition_table()
         self.emission_table = self.__init_emission_table()
+        if self.use_psuedowords:
+            self.words_counter = Counter([word_tag[0] for sentence in self.training_set for word_tag in sentence])
         for sentence in self.training_set:
             temp_sentence = [(None,'*')] + sentence + [(None,'STOP')]
             for i in range(1, len(temp_sentence)):
                 preceding_tag = temp_sentence[i-1][1]
                 current_tag = temp_sentence[i][1]
                 self.transition_table[preceding_tag][current_tag] += 1
-            for word, tag in sentence:
+            for i, (word, tag) in enumerate(sentence):
+                if self.use_psuedowords and self.words_counter[word] <= self.low_freq_threshold:
+                    word = get_psuedoword(word,i==0)
                 self.emission_table[tag][word] += 1
 
         if self.smoothing:
@@ -63,9 +69,10 @@ class HmmTagger:
 
     def __init_emission_table(self):
         table = {}
+        words = self.known_words | set(map(str, Category)) if self.use_psuedowords else self.known_words
         for tag in self.known_tags:
             table[tag] = {}
-            for word in self.known_words:
+            for word in words:
                 table[tag][word] = 0
         return table
 
@@ -78,6 +85,8 @@ class HmmTagger:
 
     """
         normalize dictionary of dictionaries
+        each dictinoary represents a row in a table
+        this function normalizes table by row.
     """
     def __normalize_table(self, table):
         for row_key, row_dict in table.items():
@@ -93,11 +102,15 @@ class HmmTagger:
     def get_transition_probability(self, preceding_tag, current_tag):
         return self.transition_table[preceding_tag][current_tag]
 
+
     """
     returns P(word|tag) - probability of word to appear given current tag.
     """
-    def get_emission_probability(self, tag, word):
-        if not self.is_word_known(word):
+    def get_emission_probability(self, tag, word, is_first_word=False):
+        if self.use_psuedowords:
+            if not self.is_word_known(word) or self.words_counter[word] <= self.low_freq_threshold:
+                word = get_psuedoword(word, is_first_word)
+        elif not self.is_word_known(word):
             return 0
         return self.emission_table[tag][word]
 
@@ -119,11 +132,12 @@ class HmmTagger:
         back_pointers = np.zeros((len(tags_list), len(sentence)), dtype=np.int)
         best_path = []
         for i, tag in enumerate(tags_list):
-            viterbi_table[i,0] = self.get_transition_probability('*', tag) * self.get_emission_probability(tag, sentence[0])
+            viterbi_table[i,0] = self.get_transition_probability('*', tag) * self.get_emission_probability(tag, sentence[0], is_first_word=True)
         for word_ind in range(1, len(sentence)):
+            word = sentence[word_ind]
             for tag_ind, tag in enumerate(tags_list):
-                if (self.is_word_known(sentence[word_ind])):
-                    max_prev_word_tag_ind = np.argmax(viterbi_table[:, word_ind - 1] * self.get_transition_probabilities(tags_list, tag) * self.get_emission_probability(tag, sentence[word_ind]))
+                if self.is_word_known(word) or self.use_psuedowords:
+                    max_prev_word_tag_ind = np.argmax(viterbi_table[:, word_ind - 1] * self.get_transition_probabilities(tags_list, tag) * self.get_emission_probability(tag, word))
                 else:
                     max_prev_word_tag_ind = choice(range(len(tags_list)))
                 max_prev_tag = tags_list[max_prev_word_tag_ind]
@@ -138,15 +152,18 @@ class HmmTagger:
 
 
 def test_hmm_tagger():
-    training_set, test_set = load_training_test_sets()
-    # training_set, test_set = load_dummy_sets()
-    hmm_tagger = HmmTagger(training_set, smoothing=True)
+    # training_set, test_set = load_training_test_sets()
+    training_set, test_set = load_dummy_sets()
+    hmm_tagger = HmmTagger(training_set, use_psuedowords=True)
+    training_words, training_tags = zip(*choice(training_set))
     test_words, test_tags = zip(*choice(test_set))
+    for k,v in hmm_tagger.emission_table.items():
+        print(k,v)
     # test_sequence = ['The', 'dog','jumped','over','the','fence','.']
-    print(test_words)
-    print(test_tags)
+    print(training_words)
+    print(training_tags)
 
-    prediction = hmm_tagger.viterbi(test_words)
+    prediction = hmm_tagger.viterbi(training_words)
 
     print(prediction)
 
