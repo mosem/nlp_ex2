@@ -147,22 +147,27 @@ if __name__ == "__main__":
     # training_set, test_set = load_dummy_sets()
     training_set, test_set = load_training_test_sets() # returns datasets after tags are cleaned.
 
+    print('question 4.b.ii')
     print('running most likely tag baseline')
     most_likely_tag_baseline(training_set, test_set)
     print('================================\n\n')
 
+    print('question 4.c.iii')
     print('running vanilla viterbi')
     evaluate_vanilla_viterbi(training_set, test_set)
     print('================================\n\n')
 
+    print('question 4.d.ii')
     print('running smoothing viterbi')
     evaluate_smoothing_viterbi(training_set, test_set)
     print('================================\n\n')
 
+    print('question 4.e.ii')
     print('running psuedowords viterbi')
     evaluate_psuedowords_viterbi(training_set, test_set)
     print('================================\n\n')
 
+    print('question 4.e.iii')
     print('running psuedowords smoothing viterbi')
     evaluate_psuedowords_smoothing_viterbi(training_set, test_set)
     print('================================\n\n')
