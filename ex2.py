@@ -139,6 +139,13 @@ def evaluate_psuedowords_viterbi(training_set, test_set):
     compute_error_rate(training_set, test_set, hmm_tagger)
 
 
+def evaluate_psuedowords_smoothing_viterbi(training_set, test_set):
+    print('initiating psuedowords hmm tagger.')
+    hmm_tagger = HmmTagger(training_set, smoothing=True, use_psuedowords=True)
+    print('done training hmm tagger.')
+    compute_error_rate(training_set, test_set, hmm_tagger)
+
+
 if __name__ == "__main__":
     # training_set, test_set = load_dummy_sets()
     training_set, test_set = load_training_test_sets()
@@ -152,5 +159,8 @@ if __name__ == "__main__":
     # print('running smoothing viterbi')
     # evaluate_smoothing_viterbi(training_set, test_set)
 
-    print('running psuedowords viterbi')
-    evaluate_psuedowords_viterbi(training_set, test_set)
+    # print('running psuedowords viterbi')
+    # evaluate_psuedowords_viterbi(training_set, test_set)
+
+    print('running psuedowords smoothing viterbi')
+    evaluate_psuedowords_smoothing_viterbi(training_set, test_set)

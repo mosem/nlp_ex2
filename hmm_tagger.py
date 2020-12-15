@@ -21,10 +21,12 @@ def load_dummy_sets():
 class HmmTagger:
 
     def __init__(self, training_set,smoothing=False, use_psuedowords=False, low_freq_threshold=5):
-        self.training_set = training_set
+
         self.smoothing = smoothing
         self.use_psuedowords = use_psuedowords
         self.low_freq_threshold = low_freq_threshold
+
+        self.training_set = self.__convert_training_set(training_set) if use_psuedowords else training_set
 
         words, tags = zip(*[tagged_word for sentence in self.training_set for tagged_word in sentence])
 
@@ -34,11 +36,19 @@ class HmmTagger:
         self.__init_tables()
 
 
+    def __convert_training_set(self, training_set):
+        new_training_set = training_set
+        self.words_counter = Counter([word_tag[0] for sentence in new_training_set for word_tag in sentence])
+        for i, tagged_sentence in enumerate(new_training_set):
+            for j, (word,tag) in enumerate(tagged_sentence):
+                if self.words_counter[word] < self.low_freq_threshold:
+                    new_training_set[i][j] = (get_psuedoword(word, j==0), tag)
+        return new_training_set
+
+
     def __init_tables(self):
         self.transition_table = self.__init_transition_table()
         self.emission_table = self.__init_emission_table()
-        if self.use_psuedowords:
-            self.words_counter = Counter([word_tag[0] for sentence in self.training_set for word_tag in sentence])
         for sentence in self.training_set:
             temp_sentence = [(None,'*')] + sentence + [(None,'STOP')]
             for i in range(1, len(temp_sentence)):
@@ -46,8 +56,6 @@ class HmmTagger:
                 current_tag = temp_sentence[i][1]
                 self.transition_table[preceding_tag][current_tag] += 1
             for i, (word, tag) in enumerate(sentence):
-                if self.use_psuedowords and self.words_counter[word] <= self.low_freq_threshold:
-                    word = get_psuedoword(word,i==0)
                 self.emission_table[tag][word] += 1
 
         if self.smoothing:
@@ -78,8 +86,9 @@ class HmmTagger:
 
 
     def __update_add_one_smoothing_on_emission_table(self):
+        words = self.known_words | set(map(str, Category)) if self.use_psuedowords else self.known_words
         for tag in self.known_tags:
-            for word in self.known_words:
+            for word in words:
                 self.emission_table[tag][word] += 1
 
 
