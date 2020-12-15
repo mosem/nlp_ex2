@@ -1,9 +1,5 @@
-import nltk, ssl
-from nltk.corpus import brown
-from collections import Counter
 from hmm_tagger import HmmTagger
 import pandas as pd
-
 from dataset_utils import *
 
 def compute_mle(training_set):

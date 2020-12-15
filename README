@@ -1,0 +1,7 @@
+Moshe Mandel
+Alon Emanuel
+
+dataset_utils.py - functions that deal with loading brown dataset, cleaning tags, and converting psuedowords.
+psuedowords_utils.py - holds psuedowords categories (enum class), and function to convert word to psuedoword.
+hmm_tagger.py - holds HMM model that trains on training set and predicts using viterbi algorithm.
+ex2.py - compute error rates for mle and hmm (answers to question 4).

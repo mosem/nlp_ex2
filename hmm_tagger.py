@@ -1,8 +1,5 @@
-from nltk.corpus import brown
-from collections import Counter
 import numpy as np
 from random import choice
-from psuedowords_utils import *
 from dataset_utils import *
 from dataset_utils import convert_training_set
 
@@ -26,16 +23,6 @@ class HmmTagger:
         self.known_tags = set(tags)
 
         self.__init_tables()
-
-
-    def __convert_training_set(self, training_set):
-        new_training_set = training_set
-        self.words_counter = Counter([word_tag[0] for sentence in new_training_set for word_tag in sentence])
-        for i, tagged_sentence in enumerate(new_training_set):
-            for j, (word,tag) in enumerate(tagged_sentence):
-                if self.words_counter[word] < self.low_freq_threshold:
-                    new_training_set[i][j] = (get_psuedoword(word, j==0), tag)
-        return new_training_set
 
 
     def __init_tables(self):
@@ -150,26 +137,4 @@ class HmmTagger:
             max_tag_ind = np.argmax(viterbi_table[:, word_ind])
             best_path.insert(0, tags_list[back_pointers[max_tag_ind, word_ind]])
         return best_path
-
-
-def test_hmm_tagger():
-    # training_set, test_set = load_training_test_sets()
-    training_set, test_set = load_dummy_sets()
-    hmm_tagger = HmmTagger(training_set, use_psuedowords=True)
-    training_words, training_tags = zip(*choice(training_set))
-    test_words, test_tags = zip(*choice(test_set))
-    for k,v in hmm_tagger.emission_table.items():
-        print(k,v)
-    # test_sequence = ['The', 'dog','jumped','over','the','fence','.']
-    print(training_words)
-    print(training_tags)
-
-    prediction = hmm_tagger.viterbi(training_words)
-
-    print(prediction)
-
-
-
-if __name__ == "__main__":
-    test_hmm_tagger()
 
