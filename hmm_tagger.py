@@ -65,9 +65,8 @@ class HmmTagger:
 
 
     def __update_add_one_smoothing_on_emission_table(self):
-        words = self.known_words | set(map(str, Category)) if self.use_psuedowords else self.known_words
         for tag in self.known_tags:
-            for word in words:
+            for word in self.emission_table[tag].keys():
                 self.emission_table[tag][word] += 1
 
 
